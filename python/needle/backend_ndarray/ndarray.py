@@ -11,7 +11,8 @@ def prod(x):
 
 
 class BackendDevice:
-    """A backend device, wrapps the implementation module."""
+    """A backend device, wraps the implementation module."""
+
     def __init__(self, name, mod):
         self.name = name
         self.mod = mod
@@ -28,19 +29,45 @@ class BackendDevice:
     def enabled(self):
         return self.mod is not None
 
+    def randn(self, *shape, dtype="float32"):
+        # note: numpy doesn't support types within standard random routines, and
+        # .astype("float32") does work if we're generating a singleton
+        return NDArray(numpy.random.randn(*shape).astype(dtype), device=self)
+
+    def rand(self, *shape, dtype="float32"):
+        # note: numpy doesn't support types within standard random routines, and
+        # .astype("float32") does work if we're generating a singleton
+        return NDArray(numpy.random.rand(*shape).astype(dtype), device=self)
+
+    def one_hot(self, n, i, dtype="float32"):
+        return NDArray(numpy.eye(n, dtype=dtype)[i], device=self)
+
+    def empty(self, shape, dtype="float32"):
+        dtype = "float32" if dtype is None else dtype
+        assert dtype == "float32"
+        return NDArray.make(shape, device=self)
+
+    def full(self, shape, fill_value, dtype="float32"):
+        dtype = "float32" if dtype is None else dtype
+        assert dtype == "float32"
+        arr = self.empty(shape, dtype)
+        arr.fill(fill_value)
+        return arr
+
 
 def cuda():
     """Return cuda device"""
     try:
         from . import ndarray_backend_cuda
+
         return BackendDevice("cuda", ndarray_backend_cuda)
     except ImportError:
         return BackendDevice("cuda", None)
 
 
-def numpy_device():
+def cpu_numpy():
     """Return numpy device"""
-    return BackendDevice("numpy_device", ndarray_backend_numpy)
+    return BackendDevice("cpu_numpy", ndarray_backend_numpy)
 
 
 def cpu():
@@ -49,17 +76,20 @@ def cpu():
 
 
 def default_device():
-    return numpy_device()
+    return cpu_numpy()
+
+
+def all_devices():
+    """return a list of all available devices"""
+    return [cpu(), cuda(), cpu_numpy()]
 
 
 class NDArray:
-    """A generic ND array class that may contain multipe different backends
+    """A generic ND array class that may contain multiple different backends
     i.e., a Numpy backend, a native CPU backend, or a GPU backend.
-
     This class will only contains those functions that you need to implement
     to actually get the desired functionality for the programming examples
     in the homework, and no more.
-
     For now, for simplicity the class only supports float32 types, though
     this can be extended if desired.
     """
@@ -101,9 +131,9 @@ class NDArray:
 
     @staticmethod
     def make(shape, strides=None, device=None, handle=None, offset=0):
-        """ Create a new NDArray with the given properties.  This will allocation the
+        """Create a new NDArray with the given properties.  This will allocation the
         memory if handle=None, otherwise it will use the handle of an existing
-        array. """
+        array."""
         array = NDArray.__new__(NDArray)
         array._shape = tuple(shape)
         array._strides = NDArray.compact_strides(shape) if strides is None else strides
@@ -138,12 +168,12 @@ class NDArray:
         """ Return number of dimensions. """
         return len(self._shape)
 
+    @property
+    def size(self):
+        return prod(self._shape)
+
     def __repr__(self):
-        return (
-            "NDArray("
-            + self.numpy().__str__()
-            + f", device={self.device})"
-        )
+        return "NDArray(" + self.numpy().__str__() + f", device={self.device})"
 
     def __str__(self):
         return self.numpy().__str__()
@@ -167,10 +197,12 @@ class NDArray:
         )
 
     def is_compact(self):
-        """ Return true if array is compact in memory and internal size equals product
-        of the shape dimensions """
-        return (self._strides == self.compact_strides(self._shape) and 
-                prod(self.shape) == self._handle.size)
+        """Return true if array is compact in memory and internal size equals product
+        of the shape dimensions"""
+        return (
+            self._strides == self.compact_strides(self._shape)
+            and prod(self.shape) == self._handle.size
+        )
 
     def compact(self):
         """ Convert a matrix to be compact """
@@ -190,21 +222,22 @@ class NDArray:
             shape, strides=strides, device=self.device, handle=self._handle
         )
 
+    @property
+    def flat(self):
+        return self.reshape((self.size,))
+
     def reshape(self, new_shape):
         """
         Reshape the matrix without copying memory.  This will return a matrix
         that corresponds to a reshaped array but points to the same memory as
         the original array.
-
         Raises:
             ValueError if product of current shape is not equal to the product
             of the new shape, or if the matrix is not compact.
-
         Args:
             new_shape (tuple): new shape of the array
-
         Returns:
-            NDArray : reshaped array; this will point to thep
+            NDArray : reshaped array; this will point to the same memory as the original NDArray.
         """
 
         ### BEGIN YOUR SOLUTION
@@ -213,7 +246,7 @@ class NDArray:
 
     def permute(self, new_axes):
         """
-        Permute order of the dimensions.  new_axes describes a permuation of the
+        Permute order of the dimensions.  new_axes describes a permutation of the
         existing axes, so e.g.:
           - If we have an array with dimension "BHWC" then .permute((0,3,1,2))
             would convert this to "BCHW" order.
@@ -221,11 +254,9 @@ class NDArray:
         Like reshape, this operation should not copy memory, but achieves the
         permuting by just adjusting the shape/strides of the array.  That is,
         it returns a new array that has the dimensions permuted as desired, but
-        which points to the same memroy as the original array.
-
+        which points to the same memory as the original array.
         Args:
-            new_axes (tuple): permuation order of the dimensions
-
+            new_axes (tuple): permutation order of the dimensions
         Returns:
             NDarray : new NDArray object with permuted dimensions, pointing
             to the same memory as the original NDArray (i.e., just shape and
@@ -243,14 +274,11 @@ class NDArray:
         the size = 1 (which can then be broadcast to any size).  As with the
         previous calls, this will not copy memory, and just achieves
         broadcasting by manipulating the strides.
-
         Raises:
             assertion error if new_shape[i] != shape[i] for all i where
             shape[i] != 1
-
         Args:
             new_shape (tuple): shape to broadcast to
-
         Returns:
             NDArray: the new NDArray object with the new broadcast shape; should
             point to the same memory as the original array.
@@ -290,25 +318,21 @@ class NDArray:
         three elements .start .stop .step), which can be None or have negative
         entries, so for simplicity we wrote the code for you to convert these
         to always be a tuple of slices, one of each dimension.
-
         For this tuple of slices, return an array that subsets the desired
         elements.  As before, this can be done entirely through compute a new
         shape, stride, and offset for the new "view" into the original array,
         pointing to the same memory
-
         Raises:
             AssertionError if a slice has negative size or step, or if number
             of slices is not equal to the number of dimension (the stub code
             already raises all these errors.
-
         Args:
             idxs tuple: (after stub code processes), a tuple of slice elements
-            coresponding to the subset of the matrix to get
-
+            corresponding to the subset of the matrix to get
         Returns:
             NDArray: a new NDArray object corresponding to the selected
-            subset of elements.  As before, this should not copy memroy but just
-            manipulate the shape/strides/offset of the new array, referecing
+            subset of elements.  As before, this should not copy memory but just
+            manipulate the shape/strides/offset of the new array, referencing
             the same array as the original one.
         """
 
@@ -353,7 +377,7 @@ class NDArray:
     ### Collection of elementwise and scalar function: add, multiply, boolean, etc
 
     def ewise_or_scalar(self, other, ewise_func, scalar_func):
-        """Run either an elementwise or scalar version of a function,
+        """Run either an element-wise or scalar version of a function,
         depending on whether "other" is an NDArray or scalar
         """
         out = NDArray.make(self.shape, device=self.device)
@@ -440,18 +464,16 @@ class NDArray:
 
     ### Matrix multiplication
     def __matmul__(self, other):
-        """Matrix multplication of two arrays.  This requires that both arrays
+        """Matrix multiplication of two arrays.  This requires that both arrays
         be 2D (i.e., we don't handle batch matrix multiplication), and that the
         sizes match up properly for matrix multiplication.
-
         In the case of the CPU backend, you will implement an efficient "tiled"
         version of matrix multiplication for the case when all dimensions of
         the array are divisible by self.device.__tile_size__.  In this case,
-        the code below will restride and compact the matrix into tiled form,
+        the code below will re-stride and compact the matrix into tiled form,
         and then pass to the relevant CPU backend.  For the CPU version we will
         just fall back to the naive CPU implementation if the array shape is not
         a multiple of the tile size
-
         The GPU (and numpy) versions don't have any tiled version (or rather,
         the GPU version will just work natively by tiling any input size).
         """
@@ -518,7 +540,6 @@ class NDArray:
         return out
 
 
-
 def array(a, dtype="float32", device=None):
     """ Convenience methods to match numpy a bit more closely."""
     dtype = "float32" if dtype is None else dtype
@@ -527,6 +548,14 @@ def array(a, dtype="float32", device=None):
 
 
 def empty(shape, dtype="float32", device=None):
-    dtype = "float32" if dtype is None else dtype
-    assert dtype == "float32"
-    return NDArray.make(shape, device=device)
+    device = device if device is not None else default_device()
+    return devie.empty(shape, dtype)
+
+
+def full(shape, fill_value, dtype="float32", device=None):
+    device = device if device is not None else default_device()
+    return device.full(shape, fill_value, dtype)
+
+
+def broadcast_to(array, new_shape):
+    return array.broadcast_to(new_shape)
