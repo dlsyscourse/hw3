@@ -1,7 +1,8 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
+#include <vector>
+#include <functional>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -21,7 +22,7 @@ const size_t ELEM_SIZE = sizeof(scalar_t);
  * here by default.
  */
 struct AlignedArray {
-  AlignedArray(const size_t size) {
+  explicit AlignedArray(const size_t size) {
     int ret = posix_memalign((void**)&ptr, ALIGNMENT, size * ELEM_SIZE);
     if (ret != 0) throw std::bad_alloc();
     this->size = size;
@@ -44,7 +45,31 @@ void Fill(AlignedArray* out, scalar_t val) {
 }
 
 
+uint32_t make_stride_ids(std::vector<uint32_t> strides, std::vector<uint32_t> dim_ids)
+{
+  uint32_t ids = 0;
+  for (size_t i = 0; i < strides.size(); i++){
+    ids += strides[i] * dim_ids[i];
+  }
+  return ids;
+}
 
+void adjust_ids(std::vector<uint32_t> & dim_ids, const std::vector<uint32_t> shape, const uint32_t begin_idx)
+{
+  // add ids in the last dim and check the add signal
+  dim_ids[begin_idx] += 1;
+  if (dim_ids[begin_idx] == shape[begin_idx]){
+    dim_ids[begin_idx] = 0;
+    for (size_t i = begin_idx - 1; i != -1; i--){
+      dim_ids[i] += 1;
+      if (dim_ids[i] == shape[i])
+        dim_ids[i] = 0;
+      else
+        break;
+    }
+  }
+  return;
+}
 
 void Compact(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> shape,
              std::vector<uint32_t> strides, size_t offset) {
@@ -63,9 +88,24 @@ void Compact(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> sha
    *  function will implement here, so we won't repeat this note.)
    */
   /// BEGIN YOUR SOLUTION
-  
+  uint32_t array_len = 1;
+  uint32_t array_dim = shape.size();
+  for (auto it = shape.begin(); it != shape.end(); it++)
+    array_len *= *(it);
+
+  std::vector<uint32_t> dim_ids;
+  for (size_t i = 0; i < array_dim; i++)
+    dim_ids.push_back(0);
+
+  for (size_t cnt = 0; cnt < array_len; cnt++){
+    // assign value
+    uint32_t stride_ids = make_stride_ids(strides, dim_ids);
+    out->ptr[cnt] = a.ptr[offset + stride_ids];
+    adjust_ids(dim_ids, shape, array_dim -1);
+  }
   /// END YOUR SOLUTION
 }
+
 
 void EwiseSetitem(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t> shape,
                   std::vector<uint32_t> strides, size_t offset) {
@@ -80,7 +120,21 @@ void EwiseSetitem(const AlignedArray& a, AlignedArray* out, std::vector<uint32_t
    *   offset: offset of the *out* array (not a, which has zero offset, being compact)
    */
   /// BEGIN YOUR SOLUTION
-  
+  uint32_t array_len = 1;
+  uint32_t array_dim = shape.size();
+  for (auto it = shape.begin(); it != shape.end(); it++)
+    array_len *= *(it);
+
+  std::vector<uint32_t> dim_ids;
+  for (size_t i = 0; i < array_dim; i++)
+    dim_ids.push_back(0);
+
+  for (size_t cnt = 0; cnt < array_len; cnt++){
+    // assign value
+    uint32_t stride_ids = make_stride_ids(strides, dim_ids);
+    out->ptr[offset + stride_ids] = a.ptr[cnt];
+    adjust_ids(dim_ids, shape, array_dim -1);
+  }
   /// END YOUR SOLUTION
 }
 
@@ -101,7 +155,21 @@ void ScalarSetitem(const size_t size, scalar_t val, AlignedArray* out, std::vect
    */
 
   /// BEGIN YOUR SOLUTION
-  
+  // Fill(out, val);
+  uint32_t array_dim = shape.size();
+  std::vector<uint32_t> dim_ids;
+  for (size_t i = 0; i < array_dim; i++)
+  {
+    dim_ids.push_back(0);
+  }
+
+  for (size_t cnt = 0; cnt < size; cnt++)
+  {
+    // assign value
+    uint32_t stride_ids = make_stride_ids(strides, dim_ids);
+    out->ptr[offset + stride_ids] = val;
+    adjust_ids(dim_ids, shape, array_dim -1);
+  }
   /// END YOUR SOLUTION
 }
 
@@ -146,6 +214,96 @@ void ScalarAdd(const AlignedArray& a, scalar_t val, AlignedArray* out) {
 
 /// BEGIN YOUR SOLUTION
 
+// define func template
+template<typename ret>
+void BiEwiseFunc(const AlignedArray& a, const AlignedArray& b, AlignedArray* out, std::function<ret(scalar_t, scalar_t)> udf){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = udf(a.ptr[i], b.ptr[i]);
+  }
+}
+
+template<typename ret>
+void UnEwiseFunc(const AlignedArray& a, AlignedArray* out, std::function<ret(scalar_t)> udf){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = udf(a.ptr[i]);
+  }
+}
+
+template<typename ret>
+void ScalarFunc(const AlignedArray& a, scalar_t val, AlignedArray* out, std::function<ret(scalar_t, scalar_t)> udf){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = udf(a.ptr[i], val);
+  }
+}
+
+// define ewise and scalar func
+void EwiseMul(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
+  BiEwiseFunc<scalar_t>(a, b, out, std::multiplies<scalar_t>());
+}
+
+void ScalarMul(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  ScalarFunc<scalar_t>(a, val, out, std::multiplies<scalar_t>());
+}
+
+void EwiseDiv(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
+  BiEwiseFunc<scalar_t>(a, b, out, std::divides<scalar_t>());
+}
+
+void ScalarDiv(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  ScalarFunc<scalar_t>(a, val, out, std::divides<scalar_t>());
+}
+
+void EwiseEq(const AlignedArray& a, const AlignedArray& b, AlignedArray* out){
+  BiEwiseFunc<scalar_t>(a, b, out, std::equal_to<scalar_t>());
+}
+
+void ScalarEq(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  ScalarFunc<scalar_t>(a, val, out, std::equal_to<scalar_t>());
+}
+
+void EwiseGe(const AlignedArray& a, const AlignedArray& b, AlignedArray* out){
+  BiEwiseFunc<scalar_t>(a, b, out, std::greater_equal<scalar_t>());
+}
+
+void ScalarGe(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  ScalarFunc<scalar_t>(a, val, out, std::greater_equal<scalar_t>());
+}
+
+void ScalarPower(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::pow(a.ptr[i], val);
+  }
+}
+
+void EwiseMaximum(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::fmax(a.ptr[i], b.ptr[i]);
+  }
+}
+
+void ScalarMaximum(const AlignedArray& a, scalar_t val, AlignedArray* out) {
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::fmax(a.ptr[i], val);
+  }
+}
+
+void EwiseTanh(const AlignedArray& a, AlignedArray* out){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::tanh(a.ptr[i]);
+  }
+}
+
+void EwiseLog(const AlignedArray& a, AlignedArray* out){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::log(a.ptr[i]);
+  }
+}
+
+void EwiseExp(const AlignedArray& a, AlignedArray* out){
+  for (size_t i = 0; i < a.size; i++){
+    out->ptr[i] = std::exp(a.ptr[i]);
+  }
+}
 /// END YOUR SOLUTION
 
 void Matmul(const AlignedArray& a, const AlignedArray& b, AlignedArray* out, uint32_t m, uint32_t n,
@@ -292,22 +450,22 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
   m.def("ewise_add", EwiseAdd);
   m.def("scalar_add", ScalarAdd);
 
-  // m.def("ewise_mul", EwiseMul);
-  // m.def("scalar_mul", ScalarMul);
-  // m.def("ewise_div", EwiseDiv);
-  // m.def("scalar_div", ScalarDiv);
-  // m.def("scalar_power", ScalarPower);
+  m.def("ewise_mul", EwiseMul);
+  m.def("scalar_mul", ScalarMul);
+  m.def("ewise_div", EwiseDiv);
+  m.def("scalar_div", ScalarDiv);
+  m.def("scalar_power", ScalarPower);
 
-  // m.def("ewise_maximum", EwiseMaximum);
-  // m.def("scalar_maximum", ScalarMaximum);
-  // m.def("ewise_eq", EwiseEq);
-  // m.def("scalar_eq", ScalarEq);
-  // m.def("ewise_ge", EwiseGe);
-  // m.def("scalar_ge", ScalarGe);
+  m.def("ewise_maximum", EwiseMaximum);
+  m.def("scalar_maximum", ScalarMaximum);
+  m.def("ewise_eq", EwiseEq);
+  m.def("scalar_eq", ScalarEq);
+  m.def("ewise_ge", EwiseGe);
+  m.def("scalar_ge", ScalarGe);
 
-  // m.def("ewise_log", EwiseLog);
-  // m.def("ewise_exp", EwiseExp);
-  // m.def("ewise_tanh", EwiseTanh);
+  m.def("ewise_log", EwiseLog);
+  m.def("ewise_exp", EwiseExp);
+  m.def("ewise_tanh", EwiseTanh);
 
   m.def("matmul", Matmul);
   m.def("matmul_tiled", MatmulTiled);

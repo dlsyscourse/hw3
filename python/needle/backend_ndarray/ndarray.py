@@ -24,7 +24,7 @@ class BackendDevice:
         return self.name + "()"
 
     def __getattr__(self, name):
-        return getattr(self.mod, name)
+        return getattr(self.mod, name)  # define getter for the call of underscore array backend
 
     def enabled(self):
         return self.mod is not None
@@ -32,15 +32,15 @@ class BackendDevice:
     def randn(self, *shape, dtype="float32"):
         # note: numpy doesn't support types within standard random routines, and
         # .astype("float32") does work if we're generating a singleton
-        return NDArray(numpy.random.randn(*shape).astype(dtype), device=self)
+        return NDArray(np.random.randn(*shape).astype(dtype), device=self)
 
     def rand(self, *shape, dtype="float32"):
         # note: numpy doesn't support types within standard random routines, and
         # .astype("float32") does work if we're generating a singleton
-        return NDArray(numpy.random.rand(*shape).astype(dtype), device=self)
+        return NDArray(np.random.rand(*shape).astype(dtype), device=self)
 
     def one_hot(self, n, i, dtype="float32"):
-        return NDArray(numpy.eye(n, dtype=dtype)[i], device=self)
+        return NDArray(np.eye(n, dtype=dtype)[i], device=self)
 
     def empty(self, shape, dtype="float32"):
         dtype = "float32" if dtype is None else dtype
@@ -100,12 +100,12 @@ class NDArray:
             # create a copy of existing NDArray
             if device is None:
                 device = other.device
-            self._init(other.to(device) + 0.0)  # this creates a copy
+            self._init(other.to(device) + 0.0)  # this creates a copy (by adding zero to implicitly return a new value)
         elif isinstance(other, np.ndarray):
             # create copy from numpy array
             device = device if device is not None else default_device()
             array = self.make(other.shape, device=device)
-            array.device.from_numpy(np.ascontiguousarray(other), array._handle)
+            array.device.from_numpy(np.ascontiguousarray(other), array._handle)  # copy data from numpy.ndarray to targeted device empty array
             self._init(array)
         else:
             # see if we can create a numpy array from input
@@ -127,7 +127,7 @@ class NDArray:
         for i in range(1, len(shape) + 1):
             res.append(stride)
             stride *= shape[-i]
-        return tuple(res[::-1])
+        return tuple(res[::-1])  # reverse the strides
 
     @staticmethod
     def make(shape, strides=None, device=None, handle=None, offset=0):
@@ -140,9 +140,9 @@ class NDArray:
         array._offset = offset
         array._device = device if device is not None else default_device()
         if handle is None:
-            array._handle = array.device.Array(prod(shape))
+            array._handle = array.device.Array(prod(shape))  # allocate new memory space and point to the space
         else:
-            array._handle = handle
+            array._handle = handle  # point to the original space
         return array
 
     ### Properies and string representations
@@ -170,10 +170,10 @@ class NDArray:
 
     @property
     def size(self):
-        return prod(self._shape)
+        return prod(self._shape)  # the actuall length of the flat underscore array
 
     def __repr__(self):
-        return "NDArray(" + self.numpy().__str__() + f", device={self.device})"
+        return "NDArray(" + self.numpy().__str__() + f", device={self.device})"  # print func contains a implicit conversion to reuse numpy.__repr__()
 
     def __str__(self):
         return self.numpy().__str__()
@@ -212,7 +212,7 @@ class NDArray:
             out = NDArray.make(self.shape, device=self.device)
             self.device.compact(
                 self._handle, out._handle, self.shape, self.strides, self._offset
-            )
+            )  # inplace operation
             return out
 
     def as_strided(self, shape, strides):
@@ -231,6 +231,7 @@ class NDArray:
         Reshape the matrix without copying memory.  This will return a matrix
         that corresponds to a reshaped array but points to the same memory as
         the original array.
+
         Raises:
             ValueError if product of current shape is not equal to the product
             of the new shape, or if the matrix is not compact.
@@ -241,7 +242,15 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        if prod(self.shape) != prod(new_shape) or not self.is_compact():
+            raise ValueError(f'cannot reshape {self.shape} to {new_shape} or the curent array is not compact')  # only reshape influence the layout
+        stride = 1
+        res = []
+        for i in range(1, len(new_shape) + 1):
+            res.append(stride)
+            stride *= new_shape[-i]
+        new_strides = tuple(res[::-1])
+        return self.make(new_shape, new_strides, self.device, self._handle, self._offset)
         ### END YOUR SOLUTION
 
     def permute(self, new_axes):
@@ -255,6 +264,7 @@ class NDArray:
         permuting by just adjusting the shape/strides of the array.  That is,
         it returns a new array that has the dimensions permuted as desired, but
         which points to the same memory as the original array.
+
         Args:
             new_axes (tuple): permutation order of the dimensions
         Returns:
@@ -264,7 +274,9 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        new_shape = tuple([self.shape[ids] for ids in new_axes])
+        new_strides = tuple(self.strides[ids] for ids in new_axes)
+        return self.make(new_shape, new_strides, self.device, self._handle, self._offset)
         ### END YOUR SOLUTION
 
     def broadcast_to(self, new_shape):
@@ -274,6 +286,7 @@ class NDArray:
         the size = 1 (which can then be broadcast to any size).  As with the
         previous calls, this will not copy memory, and just achieves
         broadcasting by manipulating the strides.
+
         Raises:
             assertion error if new_shape[i] != shape[i] for all i where
             shape[i] != 1
@@ -285,7 +298,24 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        for i in range(1, len(self.shape) + 1):
+            if self.shape[-i] != new_shape[-i]:
+                if self.shape[-i] == 1 and len(self.shape) == len(new_shape):
+                    # can be broadcasr
+                    continue
+                else:
+                    raise ValueError(f'cannot broadcast {self.shape} to {new_shape}')
+        # insert a new stride all update original stride
+        new_strides = [i for i in self.strides]
+        if 1 not in self.shape:
+            new_strides.insert(0, 0)
+        else:
+            for i in range(len(self.shape)):
+                if self.shape[i] == 1:
+                    new_strides[i] = 0
+                    break
+        new_strides = tuple(new_strides)
+        return self.make(new_shape, new_strides, self.device, self._handle, self._offset)
         ### END YOUR SOLUTION
 
     ### Get and set elements
@@ -341,14 +371,25 @@ class NDArray:
             idxs = (idxs,)
         idxs = tuple(
             [
-                self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)
+                self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)  # slice or integer
                 for i, s in enumerate(idxs)
             ]
         )
         assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        # set new shape according to start, step and step on each dim
+        new_shape = tuple([math.ceil((sl.stop - sl.start) / sl.step) for sl in idxs])
+        # set new stride according to step in each dim
+        new_strides = []
+        for i in range(len(idxs)):
+            new_strides.append(self.strides[i] * idxs[i].step)
+        new_strides = tuple(new_strides)
+        # set new offset according to start in each dim, consider non-compact memory!!! (scan all the skip the parts, use strides as the offset)
+        new_offset = 0
+        for i in range(self.ndim):
+            new_offset += idxs[i].start * self.strides[i]
+        return self.make(new_shape, new_strides, self.device, self._handle, new_offset)
         ### END YOUR SOLUTION
 
     def __setitem__(self, idxs, other):
@@ -539,7 +580,7 @@ class NDArray:
         self.device.reduce_max(view.compact()._handle, out._handle, view.shape[-1])
         return out
 
-
+# global functions under the namespace of ndarray
 def array(a, dtype="float32", device=None):
     """ Convenience methods to match numpy a bit more closely."""
     dtype = "float32" if dtype is None else dtype
@@ -549,7 +590,7 @@ def array(a, dtype="float32", device=None):
 
 def empty(shape, dtype="float32", device=None):
     device = device if device is not None else default_device()
-    return devie.empty(shape, dtype)
+    return device.empty(shape, dtype)
 
 
 def full(shape, fill_value, dtype="float32", device=None):
