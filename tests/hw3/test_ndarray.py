@@ -5,8 +5,12 @@ import needle as ndl
 from needle import backend_ndarray as nd
 
 
-_DEVICES = [nd.cpu(), pytest.param(nd.cuda(), 
-    marks=pytest.mark.skipif(not nd.cuda().enabled(), reason="No GPU"))]
+_DEVICES = [
+    nd.cpu(),
+    pytest.param(
+        nd.cuda(), marks=pytest.mark.skipif(not nd.cuda().enabled(), reason="No GPU")
+    ),
+]
 
 
 def compare_strides(a_np, a_nd):
@@ -19,54 +23,71 @@ def check_same_memory(original, view):
 
 
 # TODO test permute, broadcast_to, reshape, getitem, some combinations thereof
-@pytest.mark.parametrize("params", [
-    {
-     "shape": (4, 4),
-     "np_fn": lambda X: X.transpose(),
-     "nd_fn": lambda X: X.permute((1, 0))
-    },
-    {
-     "shape": (4, 1, 4),
-     "np_fn": lambda X: np.broadcast_to(X, shape=(4, 5, 4)),
-     "nd_fn": lambda X: X.broadcast_to((4, 5, 4))
-    },
-    {
-     "shape": (4, 3),
-     "np_fn": lambda X: X.reshape(2, 2, 3),
-     "nd_fn": lambda X: X.reshape((2, 2, 3))
-    },
-    {
-     "shape": (16, 16), # testing for compaction of large ndims array
-     "np_fn": lambda X: X.reshape(2, 4, 2, 2, 2, 2, 2),
-     "nd_fn": lambda X: X.reshape((2, 4, 2, 2, 2, 2, 2))
-    },
-    {
-     "shape": (2, 4, 2, 2, 2, 2, 2), # testing for compaction of large ndims array
-     "np_fn": lambda X: X.reshape(16, 16),
-     "nd_fn": lambda X: X.reshape((16, 16))
-    },
-    {
-     "shape": (8, 8),
-     "np_fn": lambda X: X[4:,4:],
-     "nd_fn": lambda X: X[4:,4:]
-    },
-    {
-     "shape": (8, 8, 2, 2, 2, 2),
-     "np_fn": lambda X: X[1:3, 5:8, 1:2, 0:1, 0:1, 1:2],
-     "nd_fn": lambda X: X[1:3, 5:8, 1:2, 0:1, 0:1, 1:2]
-    }, 
-    {
-     "shape": (7, 8),
-     "np_fn": lambda X: X.transpose()[3:7,2:5],
-     "nd_fn": lambda X: X.permute((1, 0))[3:7,2:5]
-    },   
-], ids=["transpose", "broadcast_to", "reshape1", "reshape2", "reshape3", "getitem1", "getitem2", "transposegetitem"])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {
+            "shape": (4, 4),
+            "np_fn": lambda X: X.transpose(),
+            "nd_fn": lambda X: X.permute((1, 0)),
+        },
+        {
+            "shape": (4, 1, 4),
+            "np_fn": lambda X: np.broadcast_to(X, shape=(4, 5, 4)),
+            "nd_fn": lambda X: X.broadcast_to((4, 5, 4)),
+        },
+        {
+            "shape": (4, 3),
+            "np_fn": lambda X: X.reshape(2, 2, 3),
+            "nd_fn": lambda X: X.reshape((2, 2, 3)),
+        },
+        {
+            "shape": (16, 16),  # testing for compaction of large ndims array
+            "np_fn": lambda X: X.reshape(2, 4, 2, 2, 2, 2, 2),
+            "nd_fn": lambda X: X.reshape((2, 4, 2, 2, 2, 2, 2)),
+        },
+        {
+            "shape": (
+                2,
+                4,
+                2,
+                2,
+                2,
+                2,
+                2,
+            ),  # testing for compaction of large ndims array
+            "np_fn": lambda X: X.reshape(16, 16),
+            "nd_fn": lambda X: X.reshape((16, 16)),
+        },
+        {"shape": (8, 8), "np_fn": lambda X: X[4:, 4:], "nd_fn": lambda X: X[4:, 4:]},
+        {
+            "shape": (8, 8, 2, 2, 2, 2),
+            "np_fn": lambda X: X[1:3, 5:8, 1:2, 0:1, 0:1, 1:2],
+            "nd_fn": lambda X: X[1:3, 5:8, 1:2, 0:1, 0:1, 1:2],
+        },
+        {
+            "shape": (7, 8),
+            "np_fn": lambda X: X.transpose()[3:7, 2:5],
+            "nd_fn": lambda X: X.permute((1, 0))[3:7, 2:5],
+        },
+    ],
+    ids=[
+        "transpose",
+        "broadcast_to",
+        "reshape1",
+        "reshape2",
+        "reshape3",
+        "getitem1",
+        "getitem2",
+        "transposegetitem",
+    ],
+)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_compact(params, device):
-    shape, np_fn, nd_fn = params['shape'], params['np_fn'], params['nd_fn']
+    shape, np_fn, nd_fn = params["shape"], params["np_fn"], params["nd_fn"]
     _A = np.random.randint(low=0, high=10, size=shape)
     A = nd.array(_A, device=device)
-    
+
     lhs = nd_fn(A).compact()
     assert lhs.is_compact(), "array is not compact"
 
@@ -78,55 +99,70 @@ reduce_params = [
     {"dims": (10,), "axis": 0},
     {"dims": (4, 5, 6), "axis": 0},
     {"dims": (4, 5, 6), "axis": 1},
-    {"dims": (4, 5, 6), "axis": 2}
+    {"dims": (4, 5, 6), "axis": 2},
 ]
+
+
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 @pytest.mark.parametrize("params", reduce_params)
 def test_reduce_sum(params, device):
-    dims, axis = params['dims'], params['axis']
+    dims, axis = params["dims"], params["axis"]
     _A = np.random.randn(*dims)
-    A = nd.array(_A, device=device)   
-    np.testing.assert_allclose(_A.sum(axis=axis, keepdims=True), A.sum(axis=axis).numpy(), atol=1e-5, rtol=1e-5)
+    A = nd.array(_A, device=device)
+    np.testing.assert_allclose(
+        _A.sum(axis=axis, keepdims=True), A.sum(axis=axis).numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 @pytest.mark.parametrize("params", reduce_params)
 def test_reduce_max(params, device):
-    dims, axis = params['dims'], params['axis']
+    dims, axis = params["dims"], params["axis"]
     _A = np.random.randn(*dims)
-    A = nd.array(_A, device=device)   
-    np.testing.assert_allclose(_A.max(axis=axis, keepdims=True), A.max(axis=axis).numpy(), atol=1e-5, rtol=1e-5)
+    A = nd.array(_A, device=device)
+    np.testing.assert_allclose(
+        _A.max(axis=axis, keepdims=True), A.max(axis=axis).numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 """ For converting slice notation to slice objects to make some proceeding tests easier to read """
+
+
 class _ShapeAndSlices(nd.NDArray):
     def __getitem__(self, idxs):
-        idxs = tuple([self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)
-                for i, s in enumerate(idxs)])
+        idxs = tuple(
+            [
+                self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)
+                for i, s in enumerate(idxs)
+            ]
+        )
         return self.shape, idxs
 
 
 ShapeAndSlices = lambda *shape: _ShapeAndSlices(np.ones(shape))
 
 
-@pytest.mark.parametrize("params", [
-    {
-        "lhs": ShapeAndSlices(4, 5, 6)[1:2, 0, 0],
-        "rhs": ShapeAndSlices(7, 7, 7)[1:2, 0, 0]
-    },
-    {
-        "lhs": ShapeAndSlices(4, 5, 6)[1:4:2, 0, 0],
-        "rhs": ShapeAndSlices(7, 7, 7)[1:3, 0, 0]
-    },
-    {
-        "lhs": ShapeAndSlices(4, 5, 6)[1:3, 2:5, 2:6],
-        "rhs": ShapeAndSlices(7, 7, 7)[:2, :3, :4]
-    },   
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {
+            "lhs": ShapeAndSlices(4, 5, 6)[1:2, 0, 0],
+            "rhs": ShapeAndSlices(7, 7, 7)[1:2, 0, 0],
+        },
+        {
+            "lhs": ShapeAndSlices(4, 5, 6)[1:4:2, 0, 0],
+            "rhs": ShapeAndSlices(7, 7, 7)[1:3, 0, 0],
+        },
+        {
+            "lhs": ShapeAndSlices(4, 5, 6)[1:3, 2:5, 2:6],
+            "rhs": ShapeAndSlices(7, 7, 7)[:2, :3, :4],
+        },
+    ],
+)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_setitem_ewise(params, device):
-    lhs_shape, lhs_slices = params['lhs']
-    rhs_shape, rhs_slices = params['rhs']
+    lhs_shape, lhs_slices = params["lhs"]
+    rhs_shape, rhs_slices = params["rhs"]
     _A = np.random.randn(*lhs_shape)
     _B = np.random.randn(*rhs_shape)
     A = nd.array(_A, device=device)
@@ -141,13 +177,16 @@ def test_setitem_ewise(params, device):
 
 
 # Ex: We want arrays of size (4, 5, 6) setting element(s) [1:4, 2, 3] to a scalar
-@pytest.mark.parametrize("params", [
-    ShapeAndSlices(4, 5, 6)[1,    2,   3],
-    ShapeAndSlices(4, 5, 6)[1:4,  2,   3],
-    ShapeAndSlices(4, 5, 6)[:4,  2:5, 3],
-    ShapeAndSlices(4, 5, 6)[1::2, 2:5, ::2],
-])
-@pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"]) 
+@pytest.mark.parametrize(
+    "params",
+    [
+        ShapeAndSlices(4, 5, 6)[1, 2, 3],
+        ShapeAndSlices(4, 5, 6)[1:4, 2, 3],
+        ShapeAndSlices(4, 5, 6)[:4, 2:5, 3],
+        ShapeAndSlices(4, 5, 6)[1::2, 2:5, ::2],
+    ],
+)
+@pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_setitem_scalar(params, device):
     shape, slices = params
     _A = np.random.randn(*shape)
@@ -164,6 +203,8 @@ def test_setitem_scalar(params, device):
 
 
 matmul_tiled_shapes = [(1, 1, 1), (2, 2, 3), (1, 2, 1), (3, 3, 3)]
+
+
 @pytest.mark.parametrize("m,n,p", matmul_tiled_shapes)
 def test_matmul_tiled(m, n, p):
     device = nd.cpu()
@@ -172,11 +213,12 @@ def test_matmul_tiled(m, n, p):
     A = nd.array(np.random.randn(m, n, t, t), device=nd.cpu())
     B = nd.array(np.random.randn(n, p, t, t), device=nd.cpu())
     C = nd.NDArray.make((m, p, t, t), device=nd.cpu())
-    device.matmul_tiled(A._handle, B._handle, C._handle, m*t, n*t, p*t)
+    device.matmul_tiled(A._handle, B._handle, C._handle, m * t, n * t, p * t)
 
-    lhs = A.numpy().transpose(0, 2, 1, 3).flatten().reshape(m*t, n*t) \
-        @ B.numpy().transpose(0, 2, 1, 3).flatten().reshape(n*t, p*t)
-    rhs = C.numpy().transpose(0, 2, 1, 3).flatten().reshape(m*t, p*t)
+    lhs = A.numpy().transpose(0, 2, 1, 3).flatten().reshape(
+        m * t, n * t
+    ) @ B.numpy().transpose(0, 2, 1, 3).flatten().reshape(n * t, p * t)
+    rhs = C.numpy().transpose(0, 2, 1, 3).flatten().reshape(m * t, p * t)
 
     np.testing.assert_allclose(lhs, rhs, atol=1e-5, rtol=1e-5)
 
@@ -187,12 +229,14 @@ OPS = {
     "add": lambda a, b: a + b,
     "subtract": lambda a, b: a - b,
     "equal": lambda a, b: a == b,
-    "greater_than": lambda a, b: a >= b
+    "greater_than": lambda a, b: a >= b,
 }
 OP_FNS = [OPS[k] for k in OPS]
 OP_NAMES = [k for k in OPS]
 
 ewise_shapes = [(1, 1, 1), (4, 5, 6)]
+
+
 @pytest.mark.parametrize("fn", OP_FNS, ids=OP_NAMES)
 @pytest.mark.parametrize("shape", ewise_shapes)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
@@ -211,7 +255,9 @@ def test_ewise_max(shape, device):
     _B = np.random.randn(*shape)
     A = nd.array(_A, device=device)
     B = nd.array(_B, device=device)
-    np.testing.assert_allclose(np.maximum(_A, _B), A.maximum(B).numpy(), atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(
+        np.maximum(_A, _B), A.maximum(B).numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 permute_params = [
@@ -219,11 +265,13 @@ permute_params = [
     {"dims": (4, 5, 6), "axes": (1, 0, 2)},
     {"dims": (4, 5, 6), "axes": (2, 1, 0)},
 ]
+
+
 @pytest.mark.parametrize("params", permute_params)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_permute(device, params):
-    dims = params['dims']
-    axes = params['axes']
+    dims = params["dims"]
+    axes = params["axes"]
     _A = np.random.randn(*dims)
     A = nd.array(_A, device=device)
     lhs = np.transpose(_A, axes=axes)
@@ -237,11 +285,13 @@ reshape_params = [
     {"shape": (8, 16), "new_shape": (2, 4, 16)},
     {"shape": (8, 16), "new_shape": (8, 4, 2, 2)},
 ]
+
+
 @pytest.mark.parametrize("params", reshape_params)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_reshape(device, params):
-    shape = params['shape']
-    new_shape = params['new_shape']
+    shape = params["shape"]
+    new_shape = params["new_shape"]
     _A = np.random.randn(*shape)
     A = nd.array(_A, device=device)
     lhs = _A.reshape(*new_shape)
@@ -257,11 +307,13 @@ getitem_params = [
     {"shape": (8, 16), "fn": lambda X: X[3:4, 1:4]},
     {"shape": (8, 16), "fn": lambda X: X[1:4, 3:4]},
 ]
+
+
 @pytest.mark.parametrize("params", getitem_params)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_getitem(device, params):
-    shape = params['shape']
-    fn = params['fn']
+    shape = params["shape"]
+    fn = params["fn"]
     _A = np.random.randn(5, 5)
     A = nd.array(_A, device=device)
     lhs = fn(_A)
@@ -274,10 +326,12 @@ def test_getitem(device, params):
 broadcast_params = [
     {"from_shape": (1, 3, 4), "to_shape": (6, 3, 4)},
 ]
+
+
 @pytest.mark.parametrize("params", broadcast_params)
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_broadcast_to(device, params):
-    from_shape, to_shape = params['from_shape'], params['to_shape']
+    from_shape, to_shape = params["from_shape"], params["to_shape"]
     _A = np.random.randn(*from_shape)
     A = nd.array(_A, device=device)
     lhs = np.broadcast_to(_A, shape=to_shape)
@@ -287,16 +341,20 @@ def test_broadcast_to(device, params):
     check_same_memory(A, rhs)
 
 
-matmul_dims = [(16, 16, 16), 
-    (8, 8, 8), 
-    (1, 2, 3), 
-    (3, 4, 5), 
-    (5, 4, 3), 
-    (64, 64, 64), 
-    (72, 72, 72), 
-    (72, 73, 74), 
-    (74, 73, 72), 
-    (128, 128, 128)]
+matmul_dims = [
+    (16, 16, 16),
+    (8, 8, 8),
+    (1, 2, 3),
+    (3, 4, 5),
+    (5, 4, 3),
+    (64, 64, 64),
+    (72, 72, 72),
+    (72, 73, 74),
+    (74, 73, 72),
+    (128, 128, 128),
+]
+
+
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 @pytest.mark.parametrize("m,n,p", matmul_dims)
 def test_matmul(m, n, p, device):
@@ -311,39 +369,47 @@ def test_matmul(m, n, p, device):
 def test_scalar_mul(device):
     A = np.random.randn(5, 5)
     B = nd.array(A, device=device)
-    np.testing.assert_allclose(A * 5., (B * 5.).numpy(), atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(A * 5.0, (B * 5.0).numpy(), atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_scalar_div(device):
     A = np.random.randn(5, 5)
     B = nd.array(A, device=device)
-    np.testing.assert_allclose(A / 5., (B / 5.).numpy(), atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(A / 5.0, (B / 5.0).numpy(), atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_scalar_power(device):
     A = np.random.randn(5, 5)
     B = nd.array(A, device=device)
-    np.testing.assert_allclose(np.power(A, 5.), (B**5.).numpy(), atol=1e-5, rtol=1e-5)
-    np.testing.assert_allclose(np.power(A, 0.5), (B**0.5).numpy(), atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(
+        np.power(A, 5.0), (B**5.0).numpy(), atol=1e-5, rtol=1e-5
+    )
+    np.testing.assert_allclose(
+        np.power(A, 0.5), (B**0.5).numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_scalar_maximum(device):
     A = np.random.randn(5, 5)
     B = nd.array(A, device=device)
-    C = (np.max(A) + 1.).item()
-    np.testing.assert_allclose(np.maximum(A, C), (B.maximum(C)).numpy(), atol=1e-5, rtol=1e-5)
-    C = (np.max(A) - 1.).item()
-    np.testing.assert_allclose(np.maximum(A, C), (B.maximum(C)).numpy(), atol=1e-5, rtol=1e-5)
+    C = (np.max(A) + 1.0).item()
+    np.testing.assert_allclose(
+        np.maximum(A, C), (B.maximum(C)).numpy(), atol=1e-5, rtol=1e-5
+    )
+    C = (np.max(A) - 1.0).item()
+    np.testing.assert_allclose(
+        np.maximum(A, C), (B.maximum(C)).numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])
 def test_scalar_eq(device):
     A = np.random.randn(5, 5)
     B = nd.array(A, device=device)
-    C = A[0,1].item()
+    C = A[0, 1].item()
     np.testing.assert_allclose(A == C, (B == C).numpy(), atol=1e-5, rtol=1e-5)
 
 
@@ -379,6 +445,7 @@ def test_ewise_tanh(device):
 ######################    |    ######################
 ###################### MUGRADE ######################
 ######################    v    ######################
+
 
 def Prepare(A):
     return (A.numpy().flatten()[:128], A.strides, A.shape)
@@ -460,7 +527,7 @@ def submit_ndarray_cpu_ops():
     MugradeSubmit(A * 42.0)
 
     A = Rand(2, 2)
-    MugradeSubmit(A ** 2.0)
+    MugradeSubmit(A**2.0)
 
     A = Rand(2, 2)
     MugradeSubmit(A / 42.0)
@@ -481,7 +548,7 @@ def submit_ndarray_cpu_ops():
     MugradeSubmit(A.tanh())
 
     A = Rand(2, 2)
-    MugradeSubmit((A/100).exp())
+    MugradeSubmit((A / 100).exp())
 
 
 def submit_ndarray_cpu_reductions():
@@ -512,7 +579,7 @@ def submit_ndarray_cpu_matmul():
         A = Rand(m, n, t, t)
         B = Rand(n, p, t, t)
         C = nd.NDArray.make((m, p, t, t), device=nd.cpu())
-        device.matmul_tiled(A._handle, B._handle, C._handle, m*t, n*t, p*t)
+        device.matmul_tiled(A._handle, B._handle, C._handle, m * t, n * t, p * t)
         MugradeSubmit(C)
 
 
@@ -562,7 +629,7 @@ def submit_ndarray_cuda_ops():
     MugradeSubmit(A * 42.0)
 
     A = RandC(2, 2)
-    MugradeSubmit(A ** 2.0)
+    MugradeSubmit(A**2.0)
 
     A = RandC(2, 2)
     MugradeSubmit(A / 42.0)
@@ -583,7 +650,7 @@ def submit_ndarray_cuda_ops():
     MugradeSubmit(A.tanh())
 
     A = RandC(2, 2)
-    MugradeSubmit((A/100).exp())
+    MugradeSubmit((A / 100).exp())
 
 
 def submit_ndarray_cuda_reductions():
