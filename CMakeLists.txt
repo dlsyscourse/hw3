@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(needle C CXX)
-cmake_policy(SET CMP0146 OLD)
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.27")
+  cmake_policy(SET CMP0146 OLD)
+endif()
 
 # find correct version of Python
 execute_process(COMMAND python3-config --prefix
