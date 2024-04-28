@@ -260,7 +260,7 @@ class NDArray:
         Like reshape, this operation should not copy memory, but achieves the
         permuting by just adjusting the shape/strides of the array.  That is,
         it returns a new array that has the dimensions permuted as desired, but
-        which points to the same memroy as the original array.
+        which points to the same memory as the original array.
 
         Args:
             new_axes (tuple): permuation order of the dimensions
@@ -346,8 +346,8 @@ class NDArray:
 
         Returns:
             NDArray: a new NDArray object corresponding to the selected
-            subset of elements.  As before, this should not copy memroy but just
-            manipulate the shape/strides/offset of the new array, referecing
+            subset of elements.  As before, this should not copy memory but just
+            manipulate the shape/strides/offset of the new array, referencing
             the same array as the original one.
         """
 
