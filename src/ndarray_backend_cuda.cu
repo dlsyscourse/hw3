@@ -172,28 +172,43 @@ void ScalarSetitem(size_t size, scalar_t val, CudaArray* out, std::vector<int32_
 ////////////////////////////////////////////////////////////////////////////////
 
 __global__ void EwiseAddKernel(const scalar_t* a, const scalar_t* b, scalar_t* out, size_t size) {
+  // Calculate the global index of the thread.
   size_t gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < size) out[gid] = a[gid] + b[gid];
 }
 
 void EwiseAdd(const CudaArray& a, const CudaArray& b, CudaArray* out) {
   /**
-   * Add together two CUDA array
+   * Add together two CUDA arrays.
+   * Args:
+   *   a: Input array 'a' to be added
+   *   b: Input array 'b' to be added
+   *   out: Output array to store the result of 'a + b'
    */
   CudaDims dim = CudaOneDim(out->size);
+
+  // Kernel will execute on 'dim.grid' blocks, each containing 'dim.block' threads.
   EwiseAddKernel<<<dim.grid, dim.block>>>(a.ptr, b.ptr, out->ptr, out->size);
 }
 
 __global__ void ScalarAddKernel(const scalar_t* a, scalar_t val, scalar_t* out, size_t size) {
+  // Calculate the global index of the thread.
   size_t gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < size) out[gid] = a[gid] + val;
 }
 
 void ScalarAdd(const CudaArray& a, scalar_t val, CudaArray* out) {
   /**
-   * Add together a CUDA array and a scalar value.
+   * Add a scalar value to every element of a CUDA array.
+   * Args:
+   *   a: Input array 'a'
+   *   val: Scalar value to be added
+   *   out: Output array to store the result of 'a + val'
    */
   CudaDims dim = CudaOneDim(out->size);
+
+  // Launch the ScalarAddKernel that will add the scalar 'val' to each element of array 'a', 
+  // and store the result in array 'out'.
   ScalarAddKernel<<<dim.grid, dim.block>>>(a.ptr, val, out->ptr, out->size);
 }
 
@@ -271,7 +286,6 @@ void ReduceMax(const CudaArray& a, CudaArray* out, size_t reduce_size) {
   assert(false && "Not Implemented");
   /// END SOLUTION
 }
-
 
 
 void ReduceSum(const CudaArray& a, CudaArray* out, size_t reduce_size) {
