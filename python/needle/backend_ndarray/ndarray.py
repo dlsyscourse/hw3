@@ -222,7 +222,7 @@ class NDArray:
         """Restride the matrix without copying memory."""
         assert len(shape) == len(strides)
         return NDArray.make(
-            shape, strides=strides, device=self.device, handle=self._handle
+            shape, strides=strides, device=self.device, handle=self._handle, offset=self._offset
         )
 
     @property
