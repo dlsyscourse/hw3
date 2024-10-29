@@ -508,7 +508,7 @@ class NDArray:
             def tile(a, tile):
                 return a.as_strided(
                     (a.shape[0] // tile, a.shape[1] // tile, tile, tile),
-                    (a.shape[1] * tile, tile, self.shape[1], 1),
+                    (a.shape[1] * tile, tile, a.shape[1], 1),
                 )
 
             t = self.device.__tile_size__
@@ -535,14 +535,17 @@ class NDArray:
         """ Return a view to the array set up for reduction functions and output array. """
         if isinstance(axis, tuple) and not axis:
             raise ValueError("Empty axis in reduce")
+
         if axis is None:
             view = self.compact().reshape((1,) * (self.ndim - 1) + (prod(self.shape),))
             #out = NDArray.make((1,) * self.ndim, device=self.device)
             out = NDArray.make((1,), device=self.device)
+
         else:
             if isinstance(axis, (tuple, list)):
                 assert len(axis) == 1, "Only support reduction over a single axis"
                 axis = axis[0]
+
             view = self.permute(
                 tuple([a for a in range(self.ndim) if a != axis]) + (axis,)
             )
@@ -558,11 +561,13 @@ class NDArray:
         view, out = self.reduce_view_out(axis, keepdims=keepdims)
         self.device.reduce_sum(view.compact()._handle, out._handle, view.shape[-1])
         return out
-        
+
     def max(self, axis=None, keepdims=False):
         view, out = self.reduce_view_out(axis, keepdims=keepdims)
         self.device.reduce_max(view.compact()._handle, out._handle, view.shape[-1])
         return out
+
+
 
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
@@ -605,5 +610,7 @@ def tanh(a):
     return a.tanh()
 
 
-def sum(a, axis=None):
-    return a.sum(axis=axis)
+def sum(a, axis=None, keepdims=False):
+    return a.sum(axis=axis, keepdims=keepdims)
+
+

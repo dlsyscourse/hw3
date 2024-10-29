@@ -11,7 +11,6 @@ import numpy
 # NOTE: we will import numpy as the array_api
 # as the backend for our computations, this line will change in later homeworks
 
-BACKEND = "np"
 import numpy as array_api
 
 
