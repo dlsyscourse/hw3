@@ -106,7 +106,7 @@ void ScalarSetitem(const size_t size, scalar_t val, AlignedArray* out, std::vect
 
 void EwiseAdd(const AlignedArray& a, const AlignedArray& b, AlignedArray* out) {
   /**
-   * Set entries in out to be the sum of correspondings entires in a and b.
+   * Set entries in out to be the sum of corresponding entries in a and b.
    */
   for (size_t i = 0; i < a.size; i++) {
     out->ptr[i] = a.ptr[i] + b.ptr[i];

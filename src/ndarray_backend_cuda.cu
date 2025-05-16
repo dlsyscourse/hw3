@@ -77,14 +77,14 @@ void Fill(CudaArray* out, scalar_t val) {
 // Compact and setitem cals
 ////////////////////////////////////////////////////////////////////////////////
 
-// Untility function to convert contiguous index i to memory location from strides
+// Utility function to convert contiguous index i to memory location from strides
 
 
 
 __global__ void CompactKernel(const scalar_t* a, scalar_t* out, size_t size, CudaVec shape,
                               CudaVec strides, size_t offset) {
   /**
-   * The CUDA kernel for the compact opeation.  This should effectively map a single entry in the 
+   * The CUDA kernel for the compact operation.  This should effectively map a single entry in the
    * non-compact input a, to the corresponding item (at location gid) in the compact array out.
    * 
    * Args:
@@ -107,12 +107,12 @@ void Compact(const CudaArray& a, CudaArray* out, std::vector<int32_t> shape,
   /**
    * Compact an array in memory.  Unlike the C++ version, in CUDA this will primarily call the 
    * relevant CUDA kernel.  In this case, we illustrate how you should set this up (i.e., we give 
-   * you the code for this fuction, and also the prototype for the CompactKernel() function).  For
+   * you the code for this function, and also the prototype for the CompactKernel() function).  For
    * the functions after this, however, you'll need to define these kernels as you see fit to 
    * execute the underlying function.
    * 
    * Args:
-   *   a: non-compact represntation of the array, given as input
+   *   a: non-compact representation of the array, given as input
    *   out: compact version of the array to be written
    *   shape: shapes of each dimension for a and out
    *   strides: strides of the *a* array (not out, which has compact strides)
@@ -130,7 +130,7 @@ void Compact(const CudaArray& a, CudaArray* out, std::vector<int32_t> shape,
 void EwiseSetitem(const CudaArray& a, CudaArray* out, std::vector<int32_t> shape,
                   std::vector<int32_t> strides, size_t offset) {
   /**
-   * Set items in a (non-compact) array using CUDA.  Yyou will most likely want to implement a
+   * Set items in a (non-compact) array using CUDA.  You will most likely want to implement a
    * EwiseSetitemKernel() function, similar to those above, that will do the actual work.
    * 
    * Args:
@@ -155,7 +155,7 @@ void ScalarSetitem(size_t size, scalar_t val, CudaArray* out, std::vector<int32_
    * Args:
    *   size: number of elements to write in out array (note that this will note be the same as
    *         out.size, because out is a non-compact subset array);  it _will_ be the same as the 
-   *         product of items in shape, but covenient to just pass it here.
+   *         product of items in shape, but convenient to just pass it here.
    *   val: scalar value to write to
    *   out: non-compact array whose items are to be written
    *   shape: shapes of each dimension of out
@@ -214,7 +214,7 @@ void ScalarAdd(const CudaArray& a, scalar_t val, CudaArray* out) {
 }
 
 /**
- * In the code the follows, use the above template to create analogous elementise
+ * In the code the follows, use the above template to create analogous elementwise
  * and and scalar operators for the following functions.  See the numpy backend for
  * examples of how they should work.
  *   - EwiseMul, ScalarMul
@@ -242,7 +242,7 @@ void ScalarAdd(const CudaArray& a, scalar_t val, CudaArray* out) {
 void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, uint32_t N,
             uint32_t P) {
   /**
-   * Multiply two (compact) matrices into an output (also comapct) matrix.  You will want to look
+   * Multiply two (compact) matrices into an output (also compact) matrix.  You will want to look
    * at the lecture and notes on GPU-based linear algebra to see how to do this.  Since ultimately
    * mugrade is just evaluating correctness, you _can_ implement a version that simply parallelizes
    * over (i,j) entries in the output array.  However, to really get the full benefit of this
@@ -256,7 +256,7 @@ void Matmul(const CudaArray& a, const CudaArray& b, CudaArray* out, uint32_t M, 
    *
    * Args:
    *   a: compact 2D array of size m x n
-   *   b: comapct 2D array of size n x p
+   *   b: compact 2D array of size n x p
    *   out: compact 2D array of size m x p to write the output to
    *   M: rows of a / out
    *   N: columns of a / rows of b
@@ -281,7 +281,7 @@ void ReduceMax(const CudaArray& a, CudaArray* out, size_t reduce_size) {
    * Args:
    *   a: compact array of size a.size = out.size * reduce_size to reduce over
    *   out: compact array to write into
-   *   redice_size: size of the dimension to reduce over
+   *   reduce_size: size of the dimension to reduce over
    */
   /// BEGIN SOLUTION
   assert(false && "Not Implemented");
@@ -298,7 +298,7 @@ void ReduceSum(const CudaArray& a, CudaArray* out, size_t reduce_size) {
    * Args:
    *   a: compact array of size a.size = out.size * reduce_size to reduce over
    *   out: compact array to write into
-   *   redice_size: size of the dimension to reduce over
+   *   reduce_size: size of the dimension to reduce over
    */
   /// BEGIN SOLUTION
   assert(false && "Not Implemented");

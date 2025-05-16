@@ -12,7 +12,7 @@ def prod(x):
 
 
 class BackendDevice:
-    """A backend device, wrapps the implementation module."""
+    """A backend device, wraps the implementation module."""
 
     def __init__(self, name, mod):
         self.name = name
@@ -86,10 +86,10 @@ def all_devices():
 
 
 class NDArray:
-    """A generic ND array class that may contain multipe different backends
+    """A generic ND array class that may contain multiple different backends
     i.e., a Numpy backend, a native CPU backend, or a GPU backend.
 
-    This class will only contains those functions that you need to implement
+    This class will only contain those functions that you need to implement
     to actually get the desired functionality for the programming examples
     in the homework, and no more.
 
@@ -252,7 +252,7 @@ class NDArray:
 
     def permute(self, new_axes):
         """
-        Permute order of the dimensions.  new_axes describes a permuation of the
+        Permute order of the dimensions.  new_axes describes a permutation of the
         existing axes, so e.g.:
           - If we have an array with dimension "BHWC" then .permute((0,3,1,2))
             would convert this to "BCHW" order.
@@ -260,10 +260,10 @@ class NDArray:
         Like reshape, this operation should not copy memory, but achieves the
         permuting by just adjusting the shape/strides of the array.  That is,
         it returns a new array that has the dimensions permuted as desired, but
-        which points to the same memroy as the original array.
+        which points to the same memory as the original array.
 
         Args:
-            new_axes (tuple): permuation order of the dimensions
+            new_axes (tuple): permutation order of the dimensions
 
         Returns:
             NDarray : new NDArray object with permuted dimensions, pointing
@@ -346,8 +346,8 @@ class NDArray:
 
         Returns:
             NDArray: a new NDArray object corresponding to the selected
-            subset of elements.  As before, this should not copy memroy but just
-            manipulate the shape/strides/offset of the new array, referecing
+            subset of elements.  As before, this should not copy memory but just
+            manipulate the shape/strides/offset of the new array, referencing
             the same array as the original one.
         """
 
@@ -479,7 +479,7 @@ class NDArray:
 
     ### Matrix multiplication
     def __matmul__(self, other):
-        """Matrix multplication of two arrays.  This requires that both arrays
+        """Matrix multiplication of two arrays.  This requires that both arrays
         be 2D (i.e., we don't handle batch matrix multiplication), and that the
         sizes match up properly for matrix multiplication.
 
