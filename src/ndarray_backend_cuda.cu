@@ -92,8 +92,8 @@ __global__ void CompactKernel(const scalar_t* a, scalar_t* out, size_t size, Cud
    *   out: CUDA point to out array
    *   size: size of out array
    *   shape: vector of shapes of a and out arrays (of type CudaVec, for past passing to CUDA kernel)
-   *   strides: vector of strides of out array
-   *   offset: offset of out array
+   *   strides: vector of strides of a array
+   *   offset: offset of a array
    */
   size_t gid = blockIdx.x * blockDim.x + threadIdx.x;
 

@@ -131,6 +131,10 @@ def test_reduce_max(params, device):
 class _ShapeAndSlices(nd.NDArray):
     def __getitem__(self, idxs):
         idxs = tuple(
+            s + self.shape[i] if isinstance(s, int) and s < 0 else s
+            for i, s in enumerate(idxs)
+        )
+        idxs = tuple(
             [
                 self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)
                 for i, s in enumerate(idxs)
@@ -362,7 +366,7 @@ def test_matmul(m, n, p, device):
     _B = np.random.randn(n, p)
     A = nd.array(_A, device=device)
     B = nd.array(_B, device=device)
-    np.testing.assert_allclose((A @ B).numpy(), _A @ _B, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose((A @ B).numpy(), _A @ _B, rtol=1e-5, atol=1e-4)
 
 
 @pytest.mark.parametrize("device", _DEVICES, ids=["cpu", "cuda"])

@@ -322,7 +322,7 @@ class NDArray:
         if start is None:
             start = 0
         if start < 0:
-            start = self.shape[dim]
+            start = self.shape[dim] + start
         if stop is None:
             stop = self.shape[dim]
         if stop < 0:
@@ -369,6 +369,10 @@ class NDArray:
         # handle singleton as tuple, everything as slices
         if not isinstance(idxs, tuple):
             idxs = (idxs,)
+        idxs = tuple(
+            s + self.shape[i] if isinstance(s, int) and s < 0 else s
+            for i, s in enumerate(idxs)
+        )
         slices = tuple(
             [
                 self.process_slice(s, i) if isinstance(s, slice) else slice(s, s + 1, 1)

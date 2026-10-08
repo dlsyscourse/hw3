@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(needle C CXX)
-cmake_policy(SET CMP0146 OLD)
+if(POLICY CMP0146)
+  cmake_policy(SET CMP0146 OLD)
+endif()
 
 # find correct version of Python
 execute_process(COMMAND python3-config --prefix
@@ -65,8 +67,9 @@ if(CUDA_FOUND)
   if(NV_RET EQUAL "0")
     CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS Auto)
   else()
-    # set to 3.7 the flag of K80
-    CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS 3.7)
+    # no GPU visible: target the T4 (sm_75) that Colab GPU runtimes use;
+    # CUDA 12+ no longer supports the old K80 (sm_37) default
+    CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS 7.5)
   endif()
 
   # set arch flags properly
