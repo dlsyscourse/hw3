@@ -465,20 +465,51 @@ def Prepare(A):
 
 
 def Rand(*shape, device=nd.cpu(), entropy=1):
+    # the seed depends only on the shape, so pass a different entropy for a second
+    # operand of the same shape (otherwise it would be an exact copy of the first)
     np.random.seed(np.prod(shape) * len(shape) * entropy)
     _A = np.random.randint(low=1, high=100, size=shape)
     return nd.array(_A, device=device)
 
 
-def RandC(*shape, entropy=1):
+def RandC(*shape, entropy=2):
     if nd.cuda().enabled():
-        return Rand(*shape, device=nd.cuda(), entropy=2)
+        return Rand(*shape, device=nd.cuda(), entropy=entropy)
+    else:
+        raise NotImplementedError("You need a GPU to run these tests.")
+
+
+def RandPair(*shape, device=nd.cpu(), entropy=1):
+    """Operands for elementwise binary ops: A is Rand(*shape), B differs from A but
+    matches it in about half the entries, so swapped or ignored operands, constant
+    results, and comparisons that mishandle ties all give wrong answers."""
+    np.random.seed(np.prod(shape) * len(shape) * entropy)
+    _A = np.random.randint(low=1, high=100, size=shape)
+    _B = np.random.randint(low=1, high=100, size=shape)
+    same = np.random.rand(*shape) < 0.5
+    _B[same] = _A[same]
+    return nd.array(_A, device=device), nd.array(_B, device=device)
+
+
+def RandPairC(*shape, entropy=2):
+    if nd.cuda().enabled():
+        return RandPair(*shape, device=nd.cuda(), entropy=entropy)
     else:
         raise NotImplementedError("You need a GPU to run these tests.")
 
 
 def MugradeSubmit(things):
     mugrade.submit(Prepare(things))
+
+
+def MugradeSubmitAll(things):
+    """Prepare() only sends the first 128 entries. For larger results, also send 128
+    entries spread evenly over the whole result (including the last one), so rows,
+    tiles, or blocks that are computed wrong past the start are caught."""
+    MugradeSubmit(things)
+    flat = things.numpy().flatten()
+    if flat.size > 128:
+        mugrade.submit(flat[np.linspace(0, flat.size - 1, 128).astype(int)])
 
 
 def submit_ndarray_python_ops():
@@ -501,17 +532,17 @@ def submit_ndarray_cpu_compact_setitem():
     MugradeSubmit(Rand(4, 4).reshape((2, 2, 4)).compact())
 
     A = Rand(4, 4)
-    B = Rand(4, 4)
+    B = Rand(4, 4, entropy=2)
     A[1, 0:3] = B[0, 1:4]
     MugradeSubmit(A)
 
     A = Rand(4, 4)
-    B = Rand(4, 4)
+    B = Rand(4, 4, entropy=2)
     A[0:3, 1] = B[1:4, 0]
     MugradeSubmit(A)
 
     A = Rand(2, 2, 2, 3)
-    B = Rand(2, 2, 2, 3)
+    B = Rand(2, 2, 2, 3, entropy=2)
     A[0, :, 1, :2] = B[0, :, 1, :2]
     MugradeSubmit(A)
 
@@ -521,19 +552,19 @@ def submit_ndarray_cpu_compact_setitem():
 
 
 def submit_ndarray_cpu_ops():
-    A, B = Rand(3, 3), Rand(3, 3)
+    A, B = RandPair(3, 3)
     MugradeSubmit(A * B)
 
-    A, B = Rand(3, 3), Rand(3, 3)
+    A, B = RandPair(3, 3)
     MugradeSubmit(A / B)
 
-    A, B = Rand(3, 3), Rand(3, 3)
+    A, B = RandPair(3, 3)
     MugradeSubmit(A == B)
 
-    A, B = Rand(3, 3), Rand(3, 3)
+    A, B = RandPair(3, 3)
     MugradeSubmit(A >= B)
 
-    A, B = Rand(3, 3), Rand(3, 3)
+    A, B = RandPair(3, 3)
     MugradeSubmit(A.maximum(B))
 
     A = Rand(2, 2)
@@ -576,24 +607,24 @@ def submit_ndarray_cpu_reductions():
 
 
 def submit_ndarray_cpu_matmul():
-    A, B = Rand(4, 4), Rand(4, 4)
-    MugradeSubmit(A @ B)
+    A, B = Rand(4, 4), Rand(4, 4, entropy=2)
+    MugradeSubmitAll(A @ B)
 
-    A, B = Rand(3, 4), Rand(4, 3)
-    MugradeSubmit(A @ B)
+    A, B = Rand(3, 4), Rand(4, 3, entropy=2)
+    MugradeSubmitAll(A @ B)
 
-    A, B = Rand(73, 72), Rand(72, 73)
-    MugradeSubmit(A @ B)
+    A, B = Rand(73, 72), Rand(72, 73, entropy=2)
+    MugradeSubmitAll(A @ B)
 
     # tiled
     for m, n, p in [(3, 2, 1), (3, 3, 3), (3, 4, 5)]:
         device = nd.cpu()
         t = device.__tile_size__
         A = Rand(m, n, t, t)
-        B = Rand(n, p, t, t)
+        B = Rand(n, p, t, t, entropy=2)
         C = nd.NDArray.make((m, p, t, t), device=nd.cpu())
         device.matmul_tiled(A._handle, B._handle, C._handle, m * t, n * t, p * t)
-        MugradeSubmit(C)
+        MugradeSubmitAll(C)
 
 
 def submit_ndarray_cuda_compact_setitem():
@@ -603,17 +634,17 @@ def submit_ndarray_cuda_compact_setitem():
     MugradeSubmit(RandC(4, 4).reshape((2, 2, 4)).compact())
 
     A = RandC(4, 4)
-    B = RandC(4, 4)
+    B = RandC(4, 4, entropy=3)
     A[1, 0:3] = B[0, 1:4]
     MugradeSubmit(A)
 
     A = RandC(4, 4)
-    B = RandC(4, 4)
+    B = RandC(4, 4, entropy=3)
     A[0:3, 1] = B[1:4, 0]
     MugradeSubmit(A)
 
     A = RandC(2, 2, 2, 3)
-    B = RandC(2, 2, 2, 3)
+    B = RandC(2, 2, 2, 3, entropy=3)
     A[0, :, 1, :2] = B[0, :, 1, :2]
     MugradeSubmit(A)
 
@@ -623,19 +654,19 @@ def submit_ndarray_cuda_compact_setitem():
 
 
 def submit_ndarray_cuda_ops():
-    A, B = RandC(3, 3), RandC(3, 3)
+    A, B = RandPairC(3, 3)
     MugradeSubmit(A * B)
 
-    A, B = RandC(3, 3), RandC(3, 3)
+    A, B = RandPairC(3, 3)
     MugradeSubmit(A / B)
 
-    A, B = RandC(3, 3), RandC(3, 3)
+    A, B = RandPairC(3, 3)
     MugradeSubmit(A == B)
 
-    A, B = RandC(3, 3), RandC(3, 3)
+    A, B = RandPairC(3, 3)
     MugradeSubmit(A >= B)
 
-    A, B = RandC(3, 3), RandC(3, 3)
+    A, B = RandPairC(3, 3)
     MugradeSubmit(A.maximum(B))
 
     A = RandC(2, 2)
@@ -678,23 +709,23 @@ def submit_ndarray_cuda_reductions():
 
 
 def submit_ndarray_cuda_matmul():
-    A, B = RandC(4, 4), RandC(4, 4)
-    MugradeSubmit(A @ B)
+    A, B = RandC(4, 4), RandC(4, 4, entropy=3)
+    MugradeSubmitAll(A @ B)
 
-    A, B = RandC(4, 3), RandC(3, 4)
-    MugradeSubmit(A @ B)
+    A, B = RandC(4, 3), RandC(3, 4, entropy=3)
+    MugradeSubmitAll(A @ B)
 
-    A, B = RandC(3, 4), RandC(4, 3)
-    MugradeSubmit(A @ B)
+    A, B = RandC(3, 4), RandC(4, 3, entropy=3)
+    MugradeSubmitAll(A @ B)
 
-    A, B = RandC(33, 33), RandC(33, 33)
-    MugradeSubmit(A @ B)
+    A, B = RandC(33, 33), RandC(33, 33, entropy=3)
+    MugradeSubmitAll(A @ B)
 
-    A, B = RandC(73, 72), RandC(72, 71)
-    MugradeSubmit(A @ B)
+    A, B = RandC(73, 72), RandC(72, 71, entropy=3)
+    MugradeSubmitAll(A @ B)
 
-    A, B = RandC(123, 125), RandC(125, 129)
-    MugradeSubmit(A @ B)
+    A, B = RandC(123, 125), RandC(125, 129, entropy=3)
+    MugradeSubmitAll(A @ B)
 
 
 if __name__ == "__main__":
