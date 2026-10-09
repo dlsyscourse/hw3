@@ -396,6 +396,9 @@ def test_scalar_power(device):
     np.testing.assert_allclose(
         np.power(A, 5.0), (B**5.0).numpy(), atol=1e-5, rtol=1e-5
     )
+    # a fractional power of a negative number is NaN, so use non-negative inputs here
+    A = np.abs(A)
+    B = nd.array(A, device=device)
     np.testing.assert_allclose(
         np.power(A, 0.5), (B**0.5).numpy(), atol=1e-5, rtol=1e-5
     )
