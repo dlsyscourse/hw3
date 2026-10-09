@@ -258,7 +258,7 @@ class NDArray:
             new_shape (tuple): new shape of the array
 
         Returns:
-            NDArray : reshaped array; this will point to thep
+            NDArray : reshaped array; this will point to the
         """
 
         ### BEGIN YOUR SOLUTION
@@ -312,7 +312,7 @@ class NDArray:
 
         ### BEGIN YOUR SOLUTION
         raise NotImplementedError()
-        ### END YOUR SOLUTION]
+        ### END YOUR SOLUTION
 
     ### Get and set elements
 

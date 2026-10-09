@@ -5,10 +5,20 @@ import needle as ndl
 from needle import backend_ndarray as nd
 
 
+def _cuda_skip_reason():
+    """Say why CUDA tests are skipped: no GPU build vs. a build that fails to import."""
+    try:
+        from needle.backend_ndarray import ndarray_backend_cuda  # noqa: F401
+        return ""
+    except ImportError as e:
+        return f"CUDA backend not available ({e})"
+
+
 _DEVICES = [
     nd.cpu(),
     pytest.param(
-        nd.cuda(), marks=pytest.mark.skipif(not nd.cuda().enabled(), reason="No GPU")
+        nd.cuda(),
+        marks=pytest.mark.skipif(not nd.cuda().enabled(), reason=_cuda_skip_reason()),
     ),
 ]
 
@@ -42,22 +52,16 @@ def check_same_memory(original, view):
             "nd_fn": lambda X: X.reshape((2, 2, 3)),
         },
         {
-            "shape": (16, 16),  # testing for compaction of large ndims array
-            "np_fn": lambda X: X.reshape(2, 4, 2, 2, 2, 2, 2),
-            "nd_fn": lambda X: X.reshape((2, 4, 2, 2, 2, 2, 2)),
+            # testing for compaction of large ndims array (permute so the view is non-compact)
+            "shape": (16, 16),
+            "np_fn": lambda X: X.reshape(2, 4, 2, 2, 2, 2, 2).transpose(6, 1, 4, 3, 2, 5, 0),
+            "nd_fn": lambda X: X.reshape((2, 4, 2, 2, 2, 2, 2)).permute((6, 1, 4, 3, 2, 5, 0)),
         },
         {
-            "shape": (
-                2,
-                4,
-                2,
-                2,
-                2,
-                2,
-                2,
-            ),  # testing for compaction of large ndims array
-            "np_fn": lambda X: X.reshape(16, 16),
-            "nd_fn": lambda X: X.reshape((16, 16)),
+            # testing for compaction of large ndims array (strided slice of a 7-D array)
+            "shape": (2, 4, 2, 2, 2, 2, 2),
+            "np_fn": lambda X: X[:, 1::2, :, 1:, :, :, ::2],
+            "nd_fn": lambda X: X[:, 1::2, :, 1:, :, :, ::2],
         },
         {"shape": (8, 8), "np_fn": lambda X: X[4:, 4:], "nd_fn": lambda X: X[4:, 4:]},
         {
@@ -75,8 +79,8 @@ def check_same_memory(original, view):
         "transpose",
         "broadcast_to",
         "reshape1",
-        "reshape2",
-        "reshape3",
+        "reshape_permute_7d",
+        "getitem_7d",
         "getitem1",
         "getitem2",
         "transposegetitem",
@@ -310,6 +314,8 @@ getitem_params = [
     {"shape": (8, 16), "fn": lambda X: X[1:2, 1:3]},
     {"shape": (8, 16), "fn": lambda X: X[3:4, 1:4]},
     {"shape": (8, 16), "fn": lambda X: X[1:4, 3:4]},
+    {"shape": (8, 16), "fn": lambda X: X[-3:-1, -5:]},
+    {"shape": (8, 16), "fn": lambda X: X[-1:, 2:12:3]},
 ]
 
 
@@ -318,7 +324,7 @@ getitem_params = [
 def test_getitem(device, params):
     shape = params["shape"]
     fn = params["fn"]
-    _A = np.random.randn(5, 5)
+    _A = np.random.randn(*shape)
     A = nd.array(_A, device=device)
     lhs = fn(_A)
     rhs = fn(A)
