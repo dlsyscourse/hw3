@@ -1,4 +1,4 @@
-.PHONY: lib, pybind, clean, format, all
+.PHONY: lib pybind clean format all
 
 all: lib
 
