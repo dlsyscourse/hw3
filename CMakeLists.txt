@@ -63,7 +63,7 @@ if(CUDA_FOUND)
   list(APPEND LINKER_LIBS ${CUDA_CUDART_LIBRARY})
 
   # invoke nvidia smi to detect if we really have a GPU
-  execute_process(COMMAND "nvidia-smi" ERROR_QUIET  RESULT_VARIABLE NV_RET)
+  execute_process(COMMAND "nvidia-smi" OUTPUT_QUIET ERROR_QUIET RESULT_VARIABLE NV_RET)
   if(NV_RET EQUAL "0")
     CUDA_SELECT_NVCC_ARCH_FLAGS(ARCH_FLAGS Auto)
   else()
