@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(needle C CXX)
 if(POLICY CMP0146)
   cmake_policy(SET CMP0146 OLD)
@@ -55,7 +55,7 @@ endif()
 ####################
 ### CUDA BACKEND ###
 ####################
-find_package(CUDA)
+find_package(CUDA QUIET)
 if(CUDA_FOUND)
   message(STATUS "Found cuda, building cuda backend")
 
@@ -86,6 +86,7 @@ if(CUDA_FOUND)
     CXX_VISIBILITY_PRESET "hidden"
     CUDA_VISIBILITY_PRESET "hidden"
 )
-
+else()
+  message(STATUS "CUDA not found, building the CPU backend only")
 endif()
 

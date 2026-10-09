@@ -6,7 +6,7 @@ all: lib
 lib:
 	@mkdir -p build
 	@cd build; cmake ..
-	@cd build; $(MAKE)
+	@cd build; $(MAKE) --no-print-directory
 
 format:
 	python3 -m black .
